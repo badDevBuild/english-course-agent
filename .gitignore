@@ -90,3 +90,13 @@ venv.bak
 
 # Deployed lesson files
 deployed_lessons/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# SQLite checkpoints
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
