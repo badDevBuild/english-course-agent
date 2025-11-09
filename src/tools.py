@@ -1,6 +1,13 @@
 import requests
+import os
+from datetime import datetime
+from pathlib import Path
+from typing import Dict
+import logging
 
 FRAMEWORK_PATH = "curriculum/framework.md"
+
+logger = logging.getLogger(__name__)
 
 def load_curriculum_framework() -> str:
     """
@@ -62,3 +69,97 @@ def deploy_webpage(html_content: str) -> str:
         error_msg = f"部署失败: {str(e)}"
         print(f"✗ {error_msg}")
         return error_msg
+
+
+def generate_image_with_gemini(prompt: str, image_id: str, lesson_id: str, aspect_ratio: str = "1:1") -> Dict:
+    """
+    使用 Gemini 2.5 Flash Image API 生成图片。
+    
+    Args:
+        prompt (str): 英文图片生成 prompt
+        image_id (str): 图片唯一标识，如 "word_dolphin"
+        lesson_id (str): 课程标识（用于目录组织）
+        aspect_ratio (str): 图片比例，默认 "1:1"，可选 "3:2", "16:9" 等
+        
+    Returns:
+        Dict: 包含以下键的字典
+            - success (bool): 是否成功
+            - file_path (str): 相对路径（用于 HTML）
+            - absolute_path (str): 绝对路径
+            - error (str): 错误信息（如果失败）
+    """
+    try:
+        from google import genai
+        from google.genai import types
+        from PIL import Image
+        from io import BytesIO
+        
+        # 初始化客户端
+        api_key = os.getenv("GOOGLE_API_KEY")
+        if not api_key:
+            return {
+                "success": False,
+                "error": "未找到 GOOGLE_API_KEY 环境变量"
+            }
+        
+        client = genai.Client(api_key=api_key)
+        
+        # 为儿童学习优化 prompt
+        enhanced_prompt = f"{prompt}. Child-friendly, bright colors, cartoon style, educational illustration."
+        
+        logger.info(f"正在生成图片: {image_id}")
+        logger.debug(f"Prompt: {enhanced_prompt}")
+        
+        # 调用 API 生成图片
+        response = client.models.generate_content(
+            model="gemini-2.5-flash-image",
+            contents=[enhanced_prompt],
+            config=types.GenerateContentConfig(
+                image_config=types.ImageConfig(
+                    aspect_ratio=aspect_ratio
+                )
+            )
+        )
+        
+        # 创建目录结构
+        # deployed_lessons/images/lesson_YYYYMMDD_HHMMSS/
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        project_root = os.path.dirname(current_dir)
+        image_dir = Path(project_root) / "deployed_lessons" / "images" / f"lesson_{lesson_id}"
+        image_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 保存图片
+        for part in response.candidates[0].content.parts:
+            if part.inline_data is not None:
+                image = Image.open(BytesIO(part.inline_data.data))
+                file_name = f"{image_id}.png"
+                absolute_path = image_dir / file_name
+                image.save(absolute_path)
+                
+                # 返回相对路径（相对于 HTML 文件）
+                relative_path = f"./images/lesson_{lesson_id}/{file_name}"
+                
+                logger.info(f"✓ 图片生成成功: {image_id} -> {absolute_path}")
+                
+                return {
+                    "success": True,
+                    "file_path": relative_path,
+                    "absolute_path": str(absolute_path)
+                }
+        
+        return {
+            "success": False,
+            "error": "API 响应中没有图片数据"
+        }
+        
+    except ImportError as e:
+        return {
+            "success": False,
+            "error": f"缺少依赖库: {str(e)}。请运行 pip install google-genai Pillow"
+        }
+    except Exception as e:
+        logger.error(f"✗ 图片生成失败: {image_id} - {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }

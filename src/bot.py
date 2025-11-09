@@ -174,13 +174,11 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         
         # 检查是否完成网页部署
         if deployment_url := final_state.get("deployment_url"):
-            # 检查用户是否批准了网页（通过反馈关键词判断）
-            user_feedback_lower = final_state.get("user_feedback", "").strip().lower()
-            is_approved = any(keyword in user_feedback_lower for keyword in ["同意", "approve", "确认", "没问题", "可以", "满意"])
-            
-            # 如果用户已批准或流程已到达 END，则结束流程
-            if is_approved or "__end__" in final_state:
-                logger.info(f"流程 {thread_id} 已成功结束（用户批准网页或到达 END）。")
+            # 检查流程是否真正到达 END（用户已批准网页）
+            # 注意：不能只检查 user_feedback，因为 user_feedback 可能包含对课程内容的"同意"
+            # 必须检查 __end__ 标志，这才表示流程真正结束
+            if "__end__" in final_state:
+                logger.info(f"流程 {thread_id} 已成功结束（到达 END 节点）。")
                 response_message = (
                     "🎉 太棒了！整个流程已完成！\n\n"
                     f"您的英语课程网页已部署，可以通过以下链接访问：\n\n"
@@ -192,9 +190,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 delete_thread_id(chat_id)
                 return
             
-            # 否则，这是首次部署，需要用户审核
+            # 否则，流程在 deploy_webpage_node 的中断点，需要用户审核网页
             else:
-                logger.info(f"流程 {thread_id} 已完成网页部署，等待用户审核。")
+                logger.info(f"流程 {thread_id} 已完成网页部署，在中断点等待用户审核。")
                 response_message = (
                     "✅ 网页已成功生成并部署！\n\n"
                     f"📱 访问链接：{deployment_url}\n\n"

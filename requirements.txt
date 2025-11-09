@@ -5,3 +5,5 @@ python-dotenv
 langgraph-checkpoint-sqlite
 python-telegram-bot
 requests
+google-genai>=1.0.0
+Pillow>=10.0.0

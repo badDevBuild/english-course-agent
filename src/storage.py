@@ -79,3 +79,4 @@ def delete_thread_id(chat_id: int):
         logging.error(f"从数据库删除 thread_id 时出错: {e}")
 
 
+
